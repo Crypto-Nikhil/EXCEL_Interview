@@ -65,7 +65,7 @@ def render_feedback(parsed: dict, title="Feedback"):
         return
 
     st.markdown(f"**Correctness:** {parsed.get('correctness','N/A')}")
-    st.markdown(f"**Score:** {parsed.get('score','N/A')}")
+    st.markdown(f"**Score:** {parsed.get('score','N/A')} / 5 (scaled to 10 in final report)")
     st.markdown(f"**Rationale:** {parsed.get('rationale','')}")
 
     improvements = parsed.get("improvements", [])
@@ -142,10 +142,13 @@ if not st.session_state.completed:
                 "timestamp": datetime.utcnow().isoformat()
             }
             st.session_state.transcript.append(entry)
-            st.session_state.scores[q_key] = parsed.get("score", 0)
+
+            # 🔹 Scale score from 5 → 10
+            raw_score = parsed.get("score", 0)
+            scaled_score = raw_score * 2
+            st.session_state.scores[q_key] = scaled_score
 
             if "Practice" in practice_mode:
-                # Show immediate feedback, pause until user clicks Next
                 render_feedback(parsed, "✅ Immediate Feedback")
 
                 if st.button("Next question ➡️"):
@@ -155,7 +158,6 @@ if not st.session_state.completed:
                         st.session_state.current_q_idx = idx + 1
                     st.rerun()
             else:
-                # Interview Mode -> auto advance
                 if idx + 1 >= len(st.session_state.q_order):
                     st.session_state.completed = True
                 else:
@@ -185,7 +187,7 @@ if not st.session_state.completed:
 if st.session_state.completed:
     st.header("📊 Final Report")
     total_score = sum(st.session_state.scores.values())
-    max_score = len(st.session_state.q_order) * 10
+    max_score = len(st.session_state.q_order) * 10  # ✅ each Q is 10 points now
     pct = (total_score / max_score) * 100 if max_score else 0
 
     st.metric("Total Score", f"{total_score}/{max_score}", delta=f"{pct:.1f}%")
@@ -205,7 +207,7 @@ if st.session_state.completed:
             model=model_choice,
             messages=[
                 {"role": "system", "content": "You are a friendly career coach and Excel expert."},
-                {"role": "user", "content": summary_prompt}
+                {"role": "user", "content":summary_prompt}
             ],
             max_tokens=400,
             temperature=0.2
