@@ -53,6 +53,7 @@ Based on the assignment requirements and possible enhancements:
 - 🔹 **Fine-tuned Models** → Train on real interview transcripts to improve evaluation accuracy.  
 - 🔹 **Integration with ATS** → Seamlessly push results into Applicant Tracking Systems.  
 - 🔹 **Multi-skill Assessment** → Extend framework for SQL, Python, and Data Analytics skills.  
+- 🔹 **Dynamic Question Sourcing** → Questions can be pulled directly from a **central question bank or JSON file**, making the system extensible without modifying code.  
 
 ---
 
@@ -64,8 +65,9 @@ Based on the assignment requirements and possible enhancements:
 
 ---
 
-## 🔹 Installation (Local Development)
-Clone the repo:
+## 🔹 Installation & Setup
+
+### 1. Clone the repo
 ```bash
 git clone https://github.com/yourusername/excel_interview.git
 cd excel_interview
