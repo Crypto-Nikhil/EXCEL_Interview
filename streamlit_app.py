@@ -1,4 +1,5 @@
 # streamlit_app.py / main.py
+
 import streamlit as st
 import os
 import json
@@ -9,11 +10,9 @@ from dotenv import load_dotenv
 # -------------------------------
 # Load environment variables
 # -------------------------------
-# First try Streamlit secrets.toml
 try:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 except Exception:
-    # Fallback to local env files
     if os.path.exists("key.env"):
         load_dotenv("key.env")
     elif os.path.exists(".env"):
@@ -21,7 +20,7 @@ except Exception:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not OPENAI_API_KEY:
-    st.error("❌ No API key found. Please set it in `.streamlit/secrets.toml` or `key.env`/`.env` locally.")
+    st.error("❌ No API key found. Please set it in `.streamlit/secrets.toml` (cloud) or key.env/.env (local).")
     st.stop()
 
 # -------------------------------
@@ -136,7 +135,7 @@ if not st.session_state.completed:
                     st.session_state.completed = True
                 else:
                     st.session_state.current_q_idx = idx + 1
-                st.experimental_rerun()
+                st.rerun()
 
     with col2:
         if st.button("Skip question"):
@@ -154,7 +153,7 @@ if not st.session_state.completed:
                 st.session_state.completed = True
             else:
                 st.session_state.current_q_idx = idx + 1
-            st.experimental_rerun()
+            st.rerun()
 
 # -------------------------------
 # Final Summary
@@ -214,4 +213,4 @@ if st.session_state.completed:
     if st.button("Start new interview"):
         for k in list(st.session_state.keys()):
             del st.session_state[k]
-        st.experimental_rerun()
+        st.rerun()
