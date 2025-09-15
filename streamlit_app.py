@@ -1,4 +1,4 @@
-# streamlit_app.py / main.py
+# streamlit_app.py
 
 import streamlit as st
 import os
@@ -6,28 +6,29 @@ import json
 import uuid
 from datetime import datetime
 from dotenv import load_dotenv
-from openai import OpenAI
+from huggingface_hub import InferenceClient
 
 # -------------------------------
-# Load environment variables
+# Load Hugging Face token
 # -------------------------------
 try:
-    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+    HF_TOKEN = st.secrets["HF_TOKEN"]
 except Exception:
     if os.path.exists("key.env"):
         load_dotenv("key.env")
     elif os.path.exists(".env"):
         load_dotenv(".env")
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    HF_TOKEN = os.getenv("HF_TOKEN")
 
-if not OPENAI_API_KEY:
-    st.error("❌ No API key found. Please set it in `.streamlit/secrets.toml` (cloud) or key.env/.env (local).")
+if not HF_TOKEN:
+    st.error("❌ No Hugging Face token found. Please set HF_TOKEN in .streamlit/secrets.toml or .env.")
     st.stop()
 
 # -------------------------------
-# OpenAI Client
+# Hugging Face Client
 # -------------------------------
-client = OpenAI(api_key=OPENAI_API_KEY)
+MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct"  # you can switch to 70B if needed
+client = InferenceClient(model=MODEL_ID, token=HF_TOKEN)
 
 # -------------------------------
 # Prompts and helpers
@@ -35,10 +36,10 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 from prompts import QUESTION_CONTEXT, make_eval_prompt
 
 def call_llm_eval(prompt: str, model: str):
-    """Call the LLM to evaluate candidate's answer, expecting JSON."""
+    """Call the Hugging Face LLaMA model to evaluate candidate's answer, expecting JSON."""
     try:
         resp = client.chat.completions.create(
-            model=model,
+            model=MODEL_ID,
             messages=[
                 {"role": "system", "content": "You are a strict JSON-returning Excel interviewer evaluator."},
                 {"role": "user", "content": prompt}
@@ -46,7 +47,7 @@ def call_llm_eval(prompt: str, model: str):
             max_tokens=350,
             temperature=0.0
         )
-        text = resp.choices[0].message.content.strip()
+        text = resp.choices[0].message["content"].strip()
         idx = text.find('{')
         json_text = text if idx == 0 else text[idx:]
         parsed = json.loads(json_text)
@@ -64,13 +65,13 @@ def call_llm_eval(prompt: str, model: str):
 # Streamlit page setup
 # -------------------------------
 st.set_page_config(page_title="AI Excel Mock Interviewer", layout="centered")
-st.title("AI-Powered Excel Mock Interviewer — PoC")
+st.title("AI-Powered Excel Mock Interviewer — LLaMA 3.1")
 
 # Sidebar
 st.sidebar.header("⚙️ Settings")
 model_choice = st.sidebar.selectbox(
-    "Choose LLM model:",
-    ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
+    "Choose model:",
+    ["meta-llama/Llama-3.1-8B-Instruct", "meta-llama/Llama-3.1-70B-Instruct"],
     index=0
 )
 practice_mode = st.sidebar.radio(
@@ -194,7 +195,7 @@ if st.session_state.completed:
             max_tokens=400,
             temperature=0.2
         )
-        st.write(resp.choices[0].message.content.strip())
+        st.write(resp.choices[0].message["content"].strip())
     except Exception as e:
         st.error(f"Feedback generation failed: {e}")
 
