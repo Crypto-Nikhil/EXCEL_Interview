@@ -29,6 +29,7 @@ if not HF_TOKEN:
 MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct"
 client = InferenceClient(model=MODEL_ID, token=HF_TOKEN)
 
+
 def call_llm_eval(prompt: str, model: str):
     """Call the Hugging Face LLaMA model to evaluate candidate's answer, expecting JSON."""
     try:
@@ -48,12 +49,35 @@ def call_llm_eval(prompt: str, model: str):
         return parsed, text
     except Exception as e:
         return {
-            "correctness":"error",
-            "score":0,
-            "rationale":str(e),
-            "improvements":[],
-            "canonical_answer":""
+            "correctness": "error",
+            "score": 0,
+            "rationale": str(e),
+            "improvements": [],
+            "canonical_answer": ""
         }, f"ERROR: {e}"
+
+
+def render_feedback(parsed: dict, title="Feedback"):
+    """Nicely format the evaluation JSON for display."""
+    st.markdown(f"### {title}")
+    if not isinstance(parsed, dict):
+        st.write(parsed)
+        return
+
+    st.markdown(f"**Correctness:** {parsed.get('correctness','N/A')}")
+    st.markdown(f"**Score:** {parsed.get('score','N/A')}")
+    st.markdown(f"**Rationale:** {parsed.get('rationale','')}")
+
+    improvements = parsed.get("improvements", [])
+    if improvements:
+        st.markdown("**Improvements:**")
+        for imp in improvements:
+            st.markdown(f"- {imp}")
+
+    if parsed.get("canonical_answer"):
+        st.markdown("**Canonical Answer:**")
+        st.code(parsed["canonical_answer"], language="excel")
+
 
 # -------------------------------
 # Streamlit page setup
@@ -122,8 +146,7 @@ if not st.session_state.completed:
 
             if "Practice" in practice_mode:
                 # Show immediate feedback, pause until user clicks Next
-                st.markdown("### ✅ Immediate Feedback")
-                st.json(parsed)
+                render_feedback(parsed, "✅ Immediate Feedback")
 
                 if st.button("Next question ➡️"):
                     if idx + 1 >= len(st.session_state.q_order):
@@ -145,7 +168,7 @@ if not st.session_state.completed:
             "question": q_obj["question"],
             "answer": "",
             "evaluation_raw": "skipped",
-            "evaluation": {"correctness":"skipped","score":0,"rationale":"skipped"},
+            "evaluation": {"correctness": "skipped", "score": 0, "rationale": "skipped"},
             "timestamp": datetime.utcnow().isoformat()
         }
         st.session_state.transcript.append(entry)
@@ -171,15 +194,7 @@ if st.session_state.completed:
         st.subheader(f"Q{i+1}: {e['question']}")
         st.markdown(f"**Answer:**\n```\n{e['answer']}\n```")
         if isinstance(e["evaluation"], dict):
-            ev = e["evaluation"]
-            st.markdown(f"- **Score:** {ev.get('score')}  \n- **Correctness:** {ev.get('correctness')}")
-            st.markdown(f"- **Rationale:** {ev.get('rationale')}")
-            if ev.get("improvements"):
-                st.markdown("- **Improvements:**")
-                for it in ev["improvements"]:
-                    st.markdown(f"  - {it}")
-            if ev.get("canonical_answer"):
-                st.markdown(f"- **Canonical answer:** {ev.get('canonical_answer')}")
+            render_feedback(e["evaluation"], title="Evaluation")
 
     st.subheader("📝 Constructive Feedback")
     summary_prompt = "You are an expert interviewer. Given these Q&A evaluations, produce 3 short paragraphs: strengths, weaknesses, and recommended next steps.\n\n"
@@ -189,8 +204,8 @@ if st.session_state.completed:
         resp = client.chat.completions.create(
             model=model_choice,
             messages=[
-                {"role":"system","content":"You are a friendly career coach and Excel expert."},
-                {"role":"user","content":summary_prompt}
+                {"role": "system", "content": "You are a friendly career coach and Excel expert."},
+                {"role": "user", "content": summary_prompt}
             ],
             max_tokens=400,
             temperature=0.2
