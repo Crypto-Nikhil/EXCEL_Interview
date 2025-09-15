@@ -6,6 +6,7 @@ import json
 import uuid
 from datetime import datetime
 from dotenv import load_dotenv
+from openai import OpenAI
 
 # -------------------------------
 # Load environment variables
@@ -24,10 +25,9 @@ if not OPENAI_API_KEY:
     st.stop()
 
 # -------------------------------
-# Import OpenAI
+# OpenAI Client
 # -------------------------------
-import openai
-openai.api_key = OPENAI_API_KEY
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # -------------------------------
 # Prompts and helpers
@@ -37,7 +37,7 @@ from prompts import QUESTION_CONTEXT, make_eval_prompt
 def call_llm_eval(prompt: str, model: str):
     """Call the LLM to evaluate candidate's answer, expecting JSON."""
     try:
-        resp = openai.ChatCompletion.create(
+        resp = client.chat.completions.create(
             model=model,
             messages=[
                 {"role": "system", "content": "You are a strict JSON-returning Excel interviewer evaluator."},
@@ -46,7 +46,7 @@ def call_llm_eval(prompt: str, model: str):
             max_tokens=350,
             temperature=0.0
         )
-        text = resp["choices"][0]["message"]["content"].strip()
+        text = resp.choices[0].message.content.strip()
         idx = text.find('{')
         json_text = text if idx == 0 else text[idx:]
         parsed = json.loads(json_text)
@@ -185,7 +185,7 @@ if st.session_state.completed:
     summary_prompt += json.dumps(st.session_state.transcript, indent=2)
 
     try:
-        resp = openai.ChatCompletion.create(
+        resp = client.chat.completions.create(
             model=model_choice,
             messages=[
                 {"role":"system","content":"You are a friendly career coach and Excel expert."},
@@ -194,7 +194,7 @@ if st.session_state.completed:
             max_tokens=400,
             temperature=0.2
         )
-        st.write(resp["choices"][0]["message"]["content"].strip())
+        st.write(resp.choices[0].message.content.strip())
     except Exception as e:
         st.error(f"Feedback generation failed: {e}")
 
