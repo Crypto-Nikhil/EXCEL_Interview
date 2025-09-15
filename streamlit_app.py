@@ -1,5 +1,3 @@
-# streamlit_app.py
-
 import streamlit as st
 import os
 import json
@@ -7,6 +5,7 @@ import uuid
 from datetime import datetime
 from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
+from prompts import QUESTION_CONTEXT, make_eval_prompt
 
 # -------------------------------
 # Load Hugging Face token
@@ -27,19 +26,14 @@ if not HF_TOKEN:
 # -------------------------------
 # Hugging Face Client
 # -------------------------------
-MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct"  # you can switch to 70B if needed
+MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct"
 client = InferenceClient(model=MODEL_ID, token=HF_TOKEN)
-
-# -------------------------------
-# Prompts and helpers
-# -------------------------------
-from prompts import QUESTION_CONTEXT, make_eval_prompt
 
 def call_llm_eval(prompt: str, model: str):
     """Call the Hugging Face LLaMA model to evaluate candidate's answer, expecting JSON."""
     try:
         resp = client.chat.completions.create(
-            model=MODEL_ID,
+            model=model,
             messages=[
                 {"role": "system", "content": "You are a strict JSON-returning Excel interviewer evaluator."},
                 {"role": "user", "content": prompt}
@@ -107,54 +101,60 @@ if not st.session_state.completed:
 
     answer = st.text_area("Your answer", key=f"answer_{q_key}", height=160)
 
-    col1, col2 = st.columns([1,1])
-    with col1:
-        if st.button("Submit answer"):
-            if not answer.strip():
-                st.warning("Please enter an answer.")
+    if st.button("Submit answer"):
+        if not answer.strip():
+            st.warning("Please enter an answer.")
+        else:
+            prompt = make_eval_prompt(q_obj["question"], answer, q_obj["tags"])
+            with st.spinner("Evaluating..."):
+                parsed, raw_text = call_llm_eval(prompt, model_choice)
+
+            entry = {
+                "question_key": q_key,
+                "question": q_obj["question"],
+                "answer": answer,
+                "evaluation_raw": raw_text,
+                "evaluation": parsed,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            st.session_state.transcript.append(entry)
+            st.session_state.scores[q_key] = parsed.get("score", 0)
+
+            if "Practice" in practice_mode:
+                # Show immediate feedback, pause until user clicks Next
+                st.markdown("### ✅ Immediate Feedback")
+                st.json(parsed)
+
+                if st.button("Next question ➡️"):
+                    if idx + 1 >= len(st.session_state.q_order):
+                        st.session_state.completed = True
+                    else:
+                        st.session_state.current_q_idx = idx + 1
+                    st.rerun()
             else:
-                prompt = make_eval_prompt(q_obj["question"], answer, q_obj["tags"])
-                with st.spinner("Evaluating..."):
-                    parsed, raw_text = call_llm_eval(prompt, model_choice)
-
-                entry = {
-                    "question_key": q_key,
-                    "question": q_obj["question"],
-                    "answer": answer,
-                    "evaluation_raw": raw_text,
-                    "evaluation": parsed,
-                    "timestamp": datetime.utcnow().isoformat()
-                }
-                st.session_state.transcript.append(entry)
-                st.session_state.scores[q_key] = parsed.get("score", 0)
-
-                if "Practice" in practice_mode:
-                    st.markdown("### Immediate Feedback")
-                    st.json(parsed)
-
+                # Interview Mode -> auto advance
                 if idx + 1 >= len(st.session_state.q_order):
                     st.session_state.completed = True
                 else:
                     st.session_state.current_q_idx = idx + 1
                 st.rerun()
 
-    with col2:
-        if st.button("Skip question"):
-            entry = {
-                "question_key": q_key,
-                "question": q_obj["question"],
-                "answer": "",
-                "evaluation_raw": "skipped",
-                "evaluation": {"correctness":"skipped","score":0,"rationale":"skipped"},
-                "timestamp": datetime.utcnow().isoformat()
-            }
-            st.session_state.transcript.append(entry)
-            st.session_state.scores[q_key] = 0
-            if idx + 1 >= len(st.session_state.q_order):
-                st.session_state.completed = True
-            else:
-                st.session_state.current_q_idx = idx + 1
-            st.rerun()
+    if st.button("Skip question"):
+        entry = {
+            "question_key": q_key,
+            "question": q_obj["question"],
+            "answer": "",
+            "evaluation_raw": "skipped",
+            "evaluation": {"correctness":"skipped","score":0,"rationale":"skipped"},
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        st.session_state.transcript.append(entry)
+        st.session_state.scores[q_key] = 0
+        if idx + 1 >= len(st.session_state.q_order):
+            st.session_state.completed = True
+        else:
+            st.session_state.current_q_idx = idx + 1
+        st.rerun()
 
 # -------------------------------
 # Final Summary
